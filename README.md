@@ -31,13 +31,13 @@ or
 
 ## Setup
 
-To do it's job, the program needs a Telegram bot token and a Presearch node API key.
+To do it's job, the program needs a Telegram bot token and a Presearch node API key. Insert these directly into `pnsb.py` before you run it for the first time.
 
 Get your Telegram bot, by visiting the [BotFather](https://t.me/botfather). Just pick a name and you're done. Do note that BotFather asks for two names, with the second being the display name. Look for the bot's token upon completion, and consider storing it somewhere safe like a password manager.
 
 To find your Presearch node API key, visit the [node dashboard](https://nodes.presearch.org/node), click the 'Stats' button for any node, and scroll to the bottom of the page.
 
-Edit your copy of the Python file, inserting your Presearch node API key and your Telegram bot token on the appropriate lines between the quote marks.
+Edit your copy of `pnsb.py`, inserting your Presearch node API key and your Telegram bot token on the appropriate lines between the quote marks.
 
 ### First run
 
