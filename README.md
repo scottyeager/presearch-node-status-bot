@@ -9,6 +9,8 @@ This is a small program that drives a Telegram bot to provide status information
 
 *Please note:* this is a first draft, and it shouldn't be exclusively relied on for checking up on your Presearch nodes. Not yet anyway :)
 
+Also note that the initial version of the Presearch API only seems to support showing nodes which have been active in the last 24 hours. That means the bot only works with nodes that have been online recently.
+
 ## Install
 
 You'll need `python3` and I've only tested on Linux. Mac might work and some parts definitely won't work on Windows. Please open an issue or drop me a line if you have experience with or interest in other platforms.

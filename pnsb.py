@@ -1,6 +1,6 @@
 #/usr/bin/python3
 
-import requests, fileinput, psutil, os, json
+import requests, fileinput, psutil, os, json, time
 
 PRESEARCH_NODE_KEY = ''
 TELEGRAM_BOT_TOKEN = ''
@@ -57,6 +57,8 @@ def get_nodes():
         resp = requests.get(purl).json()
     except json.decoder.JSONDecodeError:
         print('Error connecting to Presearch API')
+        # Wait for a while, in case we happen to get rate limited by the API for some reason. 
+        time.sleep(5)
         return nodes
 
     if resp['success'] is True:
@@ -114,7 +116,8 @@ def update_pinned_message(nodes, pin_id, pin_text):
 
 def send_status(nodes):
     if nodes:
-        message = 'Current Node Status\n---------------------\n'
+        message = 'Current Node Status:\n\n'
+
         for name, connected, minutes, url in nodes:
             if connected:
                 message += '{} is connected\n'.format(name)
@@ -210,6 +213,7 @@ for process in psutil.process_iter():
         pass
 
 print('Listening for status requests...')
+last_node_check = 0
 while 1:
     try:
         if check_status_request():
@@ -220,7 +224,12 @@ while 1:
                 unpin_all()
                 pin(status_message)
         
-        send_alert(check_alert(get_nodes()))
+        # A safeguard, so we're not relying solely on a long poll timeout from Telegram to avoid spamming the Presearch API and potentially hitting rate limits
+        if last_node_check + CHECK_INTERVAL < time.time():
+            send_alert(check_alert(get_nodes()))
+            last_node_check = time.time()
+        else:
+            pass
 
     except KeyboardInterrupt:
         raise SystemExit
