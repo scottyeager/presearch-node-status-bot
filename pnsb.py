@@ -34,11 +34,8 @@ def check_alert(nodes):
 
 def check_status_request():
     status = False
-    try:
-        resp = requests.get(turl + '/getUpdates?timeout=' + 
-                            str(CHECK_INTERVAL)).json()
-    except json.decoder.JSONDecodeError:
-        return status
+    resp = send_request(turl + '/getUpdates', timeout=str(CHECK_INTERVAL))
+
     if resp['ok'] and resp['result']:
         for update in resp['result']:
             try:
@@ -46,19 +43,17 @@ def check_status_request():
                     status = True
                     next_up = str(update['update_id'] + 1)
                     # Mark this update as processed, so it won't appear again
-                    requests.get(turl + '/getUpdates?offset=' + next_up)
+                    send_request(turl + '/getUpdates', offset=next_up)
             except KeyError:
                 pass
     return status
             
 def get_nodes():
     nodes = []
-    try:
-        resp = requests.get(purl).json()
-    except json.decoder.JSONDecodeError:
+    resp = send_request(purl)
+
+    if resp == None:
         print('Error connecting to Presearch API')
-        # Wait for a while, in case we happen to get rate limited by the API for some reason. 
-        time.sleep(5)
         return nodes
 
     if resp['success'] is True:
@@ -80,10 +75,10 @@ def get_nodes():
 
 def get_pinned_message():
     try:
-        chat = requests.get(turl + '/getChat?chat_id=' + str(TELEGRAM_CHAT_ID)).json()
+        chat = send_request(turl + '/getChat', chat_id=TELEGRAM_CHAT_ID)
         msg_id = chat['result']['pinned_message']['message_id']
         text = chat['result']['pinned_message']['text']
-    except (KeyError, json.decoder.JSONDecodeError):
+    except KeyError:
         msg_id = None
         text = ''
     return msg_id, text
@@ -91,13 +86,12 @@ def get_pinned_message():
 def pin(message):
     try:
         msg_id = message['result']['message_id']
-        requests.get(turl + '/pinChatMessage?chat_id={}&message_id={}&disable_notification=True'.format(TELEGRAM_CHAT_ID, msg_id))
+        send_request(turl + '/pinChatMessage', chat_id=TELEGRAM_CHAT_ID, message_id=msg_id)
     except KeyError:
-        pass
+        print('Tried to pin a malformed message')
 
 def unpin_all():
-    requests.get(turl + '/unpinAllChatMessages?chat_id=' + TELEGRAM_CHAT_ID)
-
+    send_request(turl + '/unpinAllChatMessages', chat_id=TELEGRAM_CHAT_ID)
 
 def update_pinned_message(nodes, pin_id, pin_text):
     one_disconnected = False
@@ -110,9 +104,10 @@ def update_pinned_message(nodes, pin_id, pin_text):
             one_disconnected = True
 
     if text_changed:
-        requests.get(turl + '/editMessageText?chat_id={}&message_id={}&text={}'.format(TELEGRAM_CHAT_ID, pin_id, pin_text))
+        send_request(turl + '/editMessageText', chat_id=TELEGRAM_CHAT_ID, message_id=pin_id, text=pin_text)
+
     if not one_disconnected:
-        requests.get(turl + '/unpinAllChatMessages?chat_id=' + TELEGRAM_CHAT_ID)
+        unpin_all()
 
 def send_status(nodes):
     if nodes:
@@ -127,11 +122,9 @@ def send_status(nodes):
                     message += url + '\n'
 
         print(message)
-        try:
-            resp = requests.get(turl + '/sendMessage?chat_id={}&text={}'.format(TELEGRAM_CHAT_ID, message)).json()
-            return resp
-        except json.decoder.JSONDecodeError:
-            return None
+        resp = send_request(turl + '/sendMessage', chat_id=TELEGRAM_CHAT_ID, text=message)
+        return resp
+
 
 def send_alert(nodes):
     message = ''
@@ -141,21 +134,20 @@ def send_alert(nodes):
             message += node[3] + '\n'
     
     if message:
-        try:
-            resp = requests.get(turl + '/sendMessage?chat_id={}&text={}'.format(TELEGRAM_CHAT_ID, message)).json()
-            unpin_all()
-            pin(resp)
-        except json.decoder.JSONDecodeError:
-            pass
+        resp = send_request(turl + '/sendMessage', chat_id=TELEGRAM_CHAT_ID, text=message)
+        unpin_all()
+        pin(resp)
 
-
+def send_request(url, timeout=5, **kwds):
+    try:
+        resp = requests.get(url, timeout=int(timeout), params=kwds).json()
+        return resp
+    except (requests.exceptions.Timeout, json.decoder.JSONDecodeError, ConnectionError) as e:
+        print(e)
+        return None
 
 if not TELEGRAM_CHAT_ID:
-    try:
-        resp = requests.get(turl + '/getUpdates').json()
-    except json.decoder.JSONDecodeError:
-        print('Unexpected reply from Telegram, please try again.')
-        raise SystemExit
+    resp = send_request(turl + '/getUpdates')
 
     if resp['ok']:
         got_message = False
@@ -175,7 +167,8 @@ if not TELEGRAM_CHAT_ID:
                         else:
                             print(line, end='')
 
-                requests.get(turl+ 'setMyCommands?commands=[{"command": "status", "description": "Get the status of nodes"}]')
+                send_request(turl + '/setMyCommands', message_id=msg_id, commands='[{"command": "status", "description": "Get the status of nodes"}]')
+
                 print('Set to chat with @{}\n'.format(username))
 
                 nodes = get_nodes()
@@ -183,7 +176,8 @@ if not TELEGRAM_CHAT_ID:
                     message = "Hey there! Here is the current status of your Presearch nodes. Message me the word 'status' or use the /status command to check on your nodes at any time"
                 else:
                     message = "Hey there! I wasn't able to find any nodes under the provided Presearch node API key. Please double check your API key and wait a few minutes. Then message me the word 'status' or use the /status command to try again"
-                requests.get(turl + '/sendMessage?chat_id={}&text={}'.format(str(TELEGRAM_CHAT_ID), message))
+
+                send_request(turl + '/sendMessage', chat_id=TELEGRAM_CHAT_ID, text=message)
 
                 send_status(nodes)
 
